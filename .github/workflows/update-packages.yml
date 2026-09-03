@@ -1,0 +1,104 @@
+name: Build and Publish Packages
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"   # weekly, Sunday 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential wget jq zstd tar
+
+      - name: Build all packages
+        id: build
+        run: |
+          mkdir -p dist
+          for pkgdir in packages/*/; do
+            pkg=$(basename "$pkgdir")
+            echo "==> Building $pkg"
+
+            workdir=$(mktemp -d)
+            outdir="$workdir/out"
+            mkdir -p "$outdir"
+
+            sh "$pkgdir/build.sh" "$outdir"
+
+            version=$(jq -r '.version' "$outdir/.kpkmeta")
+            archive="dist/${pkg}-${version}-x86_64.kpk.tar.zst"
+
+            ( cd "$outdir" && tar -cf - . | zstd -o "../../../${archive}" )
+
+            sha256=$(sha256sum "$archive" | cut -d' ' -f1)
+            size_mb=$(du -m "$archive" | cut -f1)
+
+            echo "$pkg|$version|$archive|$sha256|$size_mb" >> dist/manifest.txt
+          done
+
+      - name: Create/Update GitHub Releases
+        run: |
+          while IFS='|' read -r pkg version archive sha256 size_mb; do
+            tag="${pkg}-${version}"
+            gh release create "$tag" "$archive" \
+              --title "$pkg $version" \
+              --notes "Automated build of $pkg $version" \
+              --repo "${{ github.repository }}" \
+              || gh release upload "$tag" "$archive" --clobber --repo "${{ github.repository }}"
+          done < dist/manifest.txt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update index.json
+        run: |
+          python3 - << 'PYEOF'
+          import json, os
+
+          with open("index.json") as f:
+              index = json.load(f)
+
+          repo = os.environ["REPO"]
+
+          with open("dist/manifest.txt") as f:
+              for line in f:
+                  pkg, version, archive, sha256, size_mb = line.strip().split("|")
+                  archive_name = os.path.basename(archive)
+                  index["packages"][pkg] = {
+                      "package_name": pkg,
+                      "package_version": version,
+                      "package_compatibility": ">=0.1",
+                      "description": f"{pkg} package for Kalahari Linux",
+                      "license": "GPL-3.0",
+                      "release_tag": f"{pkg}-{version}",
+                      "asset_name": archive_name,
+                      "download_origin": "built-from-source",
+                      "download_url": f"https://github.com/{repo}/releases/download/{pkg}-{version}/{archive_name}",
+                      "sha256": sha256,
+                      "size_mb": int(size_mb),
+                      "dependencies": [],
+                      "install_path": None
+                  }
+
+          from datetime import datetime
+          index["updated_at"] = datetime.utcnow().strftime("%m/%d/%Y")
+
+          with open("index.json", "w") as f:
+              json.dump(index, f, indent=2)
+          PYEOF
+        env:
+          REPO: ${{ github.repository }}
+
+      - name: Commit updated index
+        run: |
+          git config user.name "kpk-ci-bot"
+          git config user.email "ci@reservoir-team.noreply.github.com"
+          git add index.json
+          git diff --staged --quiet || git commit -m "Update index.json [skip ci]"
+          git push
