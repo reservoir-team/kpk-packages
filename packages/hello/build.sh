@@ -18,7 +18,7 @@ cd "hello-${VERSION}"
 ./configure --prefix=/usr
 make -j"$(nproc)"
 
-cp -v src/hello "$OUT_DIR/bin/hello"
+cp -v hello "$OUT_DIR/bin/hello"
 
 cat > "$OUT_DIR/.kpkmeta" << EOF
 {
