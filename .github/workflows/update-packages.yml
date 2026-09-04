@@ -35,7 +35,7 @@ jobs:
             version=$(jq -r '.version' "$outdir/.kpkmeta")
             archive="dist/${pkg}-${version}-x86_64.kpk.tar.zst"
 
-            ( cd "$outdir" && tar -cf - . | zstd -o "../../../${archive}" )
+            ( cd "$outdir" && tar -cf - . | zstd -o "$GITHUB_WORKSPACE/${archive}" )
 
             sha256=$(sha256sum "$archive" | cut -d' ' -f1)
             size_mb=$(du -m "$archive" | cut -f1)
