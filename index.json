@@ -1,6 +1,6 @@
 {
   "index_version": "1.0",
-  "updated_at": "09/20/2026",
+  "updated_at": "09/27/2026",
   "packages": {
     "hello": {
       "package_name": "hello",
@@ -12,7 +12,7 @@
       "asset_name": "hello-2.12.1-x86_64.kpk.tar.zst",
       "download_origin": "built-from-source",
       "download_url": "https://github.com/reservoir-team/kpk-packages/releases/download/hello-2.12.1/hello-2.12.1-x86_64.kpk.tar.zst",
-      "sha256": "0f8e6cf1a884486cd0a4b217ebdd741d44bb3baf585f5567755208be76596fe4",
+      "sha256": "e7e739fd6d398ce67557767fca68c89ded14693fdba8d643e196dd86ad74443d",
       "size_mb": 1,
       "dependencies": [],
       "install_path": null
